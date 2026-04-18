@@ -40,16 +40,44 @@ function parseAddressList(field) {
 }
 
 function addressesFromMessage(parsed, direction) {
-  const buckets = [];
+  // Emit every address we can see and label its role so a single message
+  // yields both the sender AND the other recipients of the same thread.
+  const out = [];
+  const push = (list, role) => {
+    for (const a of parseAddressList(list)) out.push({ ...a, role });
+  };
   if (direction === 'inbox') {
-    buckets.push(...parseAddressList(parsed.from));
-    buckets.push(...parseAddressList(parsed.replyTo));
+    push(parsed.from, 'inbox');
+    push(parsed.replyTo, 'inbox');
+    push(parsed.sender, 'inbox');
+    // Other people copied on a message we received → still useful as contacts
+    push(parsed.to, 'mentioned');
+    push(parsed.cc, 'mentioned');
   } else {
-    buckets.push(...parseAddressList(parsed.to));
-    buckets.push(...parseAddressList(parsed.cc));
-    buckets.push(...parseAddressList(parsed.bcc));
+    push(parsed.to, 'sent');
+    push(parsed.cc, 'sent');
+    push(parsed.bcc, 'sent');
+    // Sometimes `From` on sent items is us; sometimes forwarded from someone else
+    push(parsed.from, 'inbox');
   }
-  return buckets;
+  return out;
+}
+
+const EMAIL_GLOBAL = /([A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,})/gi;
+const MAILTO_RE = /mailto:([^\s"'>)]+)/gi;
+
+function extractFromBody(text) {
+  if (!text || typeof text !== 'string') return [];
+  const found = new Map();
+  const add = email => {
+    const e = email.trim().toLowerCase().replace(/[,;.]+$/, '');
+    if (EMAIL_RE.test(e) && !found.has(e)) found.set(e, { email: e, name: '', role: 'mentioned' });
+  };
+  let m;
+  while ((m = MAILTO_RE.exec(text)) !== null) add(decodeURIComponent(m[1].split('?')[0]));
+  const capped = text.slice(0, 50_000);
+  while ((m = EMAIL_GLOBAL.exec(capped)) !== null) add(m[1]);
+  return Array.from(found.values());
 }
 
 function passesFilters(addr, filters, ownerEmail) {
@@ -66,26 +94,31 @@ function passesFilters(addr, filters, ownerEmail) {
   return true;
 }
 
-function mergeContact(map, addr, direction, date, subject) {
+function mergeContact(map, addr, date, subject, source = 'message') {
   const key = addr.email;
+  const role = addr.role || 'inbox';
   const existing = map.get(key);
   if (!existing) {
     map.set(key, {
       email: key,
       names: addr.name ? [addr.name] : [],
       count: 1,
-      sentCount: direction === 'sent' ? 1 : 0,
-      receivedCount: direction === 'inbox' ? 1 : 0,
+      sentCount: role === 'sent' ? 1 : 0,
+      receivedCount: role === 'inbox' ? 1 : 0,
+      mentionedCount: role === 'mentioned' ? 1 : 0,
       firstSeen: date || null,
       lastSeen: date || null,
-      lastSubject: subject || ''
+      lastSubject: subject || '',
+      sources: new Set([source])
     });
     return;
   }
   existing.count++;
-  if (direction === 'sent') existing.sentCount++;
-  else existing.receivedCount++;
+  if (role === 'sent') existing.sentCount++;
+  else if (role === 'inbox') existing.receivedCount++;
+  else if (role === 'mentioned') existing.mentionedCount++;
   if (addr.name && !existing.names.includes(addr.name)) existing.names.push(addr.name);
+  existing.sources.add(source);
   if (date) {
     if (!existing.firstSeen || date < existing.firstSeen) existing.firstSeen = date;
     if (!existing.lastSeen || date > existing.lastSeen) {
@@ -318,23 +351,39 @@ export async function extractContacts(config, onEvent) {
         onEvent?.({ type: 'folder', folder: folder.path, direction: folder.direction, total });
 
         let i = 0;
+        const deep = !!config.deepScan;
+        const fetchOpts = deep
+          ? { envelope: true, uid: true, source: true, bodyParts: ['text'] }
+          : { envelope: true, uid: true };
         try {
-          for await (const msg of client.fetch(slice, { envelope: true, uid: true }, { uid: true })) {
+          for await (const msg of client.fetch(slice, fetchOpts, { uid: true })) {
             i++;
             const env = msg.envelope || {};
+            const toLite = list => (list ? [{ value: list.map(a => ({ address: a.address, name: a.name })) }] : null);
             const lite = {
-              from: env.from ? [{ value: env.from.map(a => ({ address: a.address, name: a.name })) }] : null,
-              to: env.to ? [{ value: env.to.map(a => ({ address: a.address, name: a.name })) }] : null,
-              cc: env.cc ? [{ value: env.cc.map(a => ({ address: a.address, name: a.name })) }] : null,
-              bcc: env.bcc ? [{ value: env.bcc.map(a => ({ address: a.address, name: a.name })) }] : null,
-              replyTo: env.replyTo ? [{ value: env.replyTo.map(a => ({ address: a.address, name: a.name })) }] : null
+              from: toLite(env.from),
+              to: toLite(env.to),
+              cc: toLite(env.cc),
+              bcc: toLite(env.bcc),
+              replyTo: toLite(env.replyTo),
+              sender: toLite(env.sender)
             };
 
             const addrs = addressesFromMessage(lite, folder.direction);
             const date = env.date ? new Date(env.date) : null;
             const subject = env.subject || '';
             for (const a of addrs) {
-              if (passesFilters(a, filters, ownerEmail)) mergeContact(contacts, a, folder.direction, date, subject);
+              if (passesFilters(a, filters, ownerEmail)) mergeContact(contacts, a, date, subject, 'headers');
+            }
+
+            if (deep && msg.source) {
+              try {
+                const parsed = await simpleParser(msg.source);
+                const body = [parsed.text || '', parsed.html || ''].join('\n');
+                for (const found of extractFromBody(body)) {
+                  if (passesFilters(found, filters, ownerEmail)) mergeContact(contacts, found, date, subject, 'body');
+                }
+              } catch { /* ignore parse errors */ }
             }
 
             if (i % 25 === 0 || i === total) {
@@ -366,6 +415,36 @@ export async function extractContacts(config, onEvent) {
     }
   }
 
+  // Merge externally-supplied contacts (from provider address books etc.)
+  if (Array.isArray(config.externalContacts)) {
+    for (const ec of config.externalContacts) {
+      if (!ec?.email) continue;
+      const email = ec.email.toLowerCase();
+      if (email === ownerEmail) continue;
+      if (!EMAIL_RE.test(email)) continue;
+      if (filters.excludeDomains?.length) {
+        const domain = email.split('@')[1];
+        if (filters.excludeDomains.some(d => domain === d || domain.endsWith('.' + d))) continue;
+      }
+      const existing = contacts.get(email);
+      if (existing) {
+        if (ec.name && !existing.names.includes(ec.name)) existing.names.push(ec.name);
+        existing.sources.add(ec.source || 'address-book');
+        if (ec.organization) existing.organization = ec.organization;
+      } else {
+        contacts.set(email, {
+          email,
+          names: ec.name ? [ec.name] : [],
+          count: 0,
+          sentCount: 0, receivedCount: 0, mentionedCount: 0,
+          firstSeen: null, lastSeen: null, lastSubject: '',
+          organization: ec.organization || '',
+          sources: new Set([ec.source || 'address-book'])
+        });
+      }
+    }
+  }
+
   const result = Array.from(contacts.values()).map(c => ({
     email: c.email,
     name: bestName(c.names),
@@ -373,11 +452,14 @@ export async function extractContacts(config, onEvent) {
     count: c.count,
     sent: c.sentCount,
     received: c.receivedCount,
+    mentioned: c.mentionedCount || 0,
     firstSeen: c.firstSeen ? c.firstSeen.toISOString() : null,
     lastSeen: c.lastSeen ? c.lastSeen.toISOString() : null,
     lastSubject: c.lastSubject,
-    domain: c.email.split('@')[1] || ''
-  })).sort((a, b) => b.count - a.count);
+    domain: c.email.split('@')[1] || '',
+    organization: c.organization || '',
+    sources: Array.from(c.sources || [])
+  })).sort((a, b) => (b.count + b.mentioned) - (a.count + a.mentioned));
 
   onEvent?.({ type: 'done', total: result.length });
   return result;

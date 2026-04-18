@@ -69,6 +69,8 @@ export default function ConnectPanel({ onScan, scanning, onCancel, prefill, acti
   const [incremental, setIncremental] = useState(false);
   const [folders, setFolders] = useState([]);
   const [discovering, setDiscovering] = useState(false);
+  const [includeAddressBook, setIncludeAddressBook] = useState(true);
+  const [deepScan, setDeepScan] = useState(false);
 
   useEffect(() => {
     getPresets().then(setPresets).catch(() => {});
@@ -147,6 +149,7 @@ export default function ConnectPanel({ onScan, scanning, onCancel, prefill, acti
     onScan({
       host, port: Number(port), secure, user,
       pass: oauth ? undefined : pass, accessToken,
+      oauthProvider: oauth?.provider,
       scan, inboxMailbox, sentMailbox,
       folders: selectedFolders.length ? selectedFolders : undefined,
       since: since || null, before: before || null,
@@ -157,6 +160,8 @@ export default function ConnectPanel({ onScan, scanning, onCancel, prefill, acti
       },
       saveAccount: true,
       incremental,
+      includeAddressBook: oauth ? includeAddressBook : false,
+      deepScan,
       accountId: activeAccountId || undefined
     });
   };
@@ -322,6 +327,28 @@ export default function ConnectPanel({ onScan, scanning, onCancel, prefill, acti
             </span>
           </label>
         )}
+
+        {oauth && (
+          <label className="switch-row">
+            <div>
+              <div>{t('includeAddressBook')}</div>
+              <div style={{ fontSize: 11, color: 'var(--muted)', fontWeight: 400, marginTop: 2 }}>{t('includeAddressBookHint')}</div>
+            </div>
+            <span className={`switch ${includeAddressBook ? 'on' : ''}`} onClick={() => setIncludeAddressBook(v => !v)}>
+              <span className="switch-thumb" />
+            </span>
+          </label>
+        )}
+
+        <label className="switch-row">
+          <div>
+            <div>{t('deepScan')}</div>
+            <div style={{ fontSize: 11, color: 'var(--muted)', fontWeight: 400, marginTop: 2 }}>{t('deepScanHint')}</div>
+          </div>
+          <span className={`switch ${deepScan ? 'on' : ''}`} onClick={() => setDeepScan(v => !v)}>
+            <span className="switch-thumb" />
+          </span>
+        </label>
       </Section>
 
       <Section icon={<IconFilter />} title={t('filters')} defaultOpen={false}>

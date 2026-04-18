@@ -6,6 +6,7 @@ import { z } from 'zod';
 import { IMAP_PRESETS, detectPreset } from './presets.js';
 import { extractContacts, testConnection, toCSV, toVCF } from './extractor.js';
 import { listConfiguredProviders, buildAuthUrl, exchangeCode, refreshAccessToken, getProvider } from './oauth.js';
+import { fetchAddressBook } from './addressbook.js';
 import {
   listAccounts, getAccount, upsertAccount, deleteAccount, touchAccountScan,
   getFolderState, setFolderState, resetFolderState,
@@ -66,7 +67,10 @@ const scanSchema = z.object({
   }).default({}),
   saveAccount: z.boolean().default(true),
   incremental: z.boolean().default(false),
-  accountId: z.number().int().optional()
+  accountId: z.number().int().optional(),
+  includeAddressBook: z.boolean().default(true),
+  deepScan: z.boolean().default(false),
+  oauthProvider: z.enum(['google', 'microsoft']).optional()
 }).refine(d => d.pass || d.accessToken, { message: 'Either pass or accessToken is required' });
 
 const testSchema = z.object({
@@ -231,7 +235,21 @@ app.post('/api/scan', async (req, res) => {
       setFolderState: (folder, uv, lu) => setFolderState(accountId, folder, uv, lu)
     } : null;
 
-    const contacts = await extractContacts({ ...cfg, incremental }, send);
+    let externalContacts = [];
+    if (cfg.includeAddressBook && cfg.accessToken && cfg.oauthProvider) {
+      send({ type: 'status', message: `Fetching address book from ${cfg.oauthProvider}…` });
+      try {
+        externalContacts = await fetchAddressBook(cfg.oauthProvider, cfg.accessToken, ev => {
+          if (ev.error) send({ type: 'status', message: `Address book (${ev.source}): ${ev.error}` });
+          else send({ type: 'status', message: `Address book (${ev.source}): ${ev.fetched} entries` });
+        });
+        send({ type: 'status', message: `Address book: ${externalContacts.length} entries fetched.` });
+      } catch (e) {
+        send({ type: 'status', message: `Address book fetch failed: ${e.message}` });
+      }
+    }
+
+    const contacts = await extractContacts({ ...cfg, incremental, externalContacts }, send);
 
     if (accountId) {
       upsertContacts(accountId, contacts);

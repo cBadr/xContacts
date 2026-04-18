@@ -19,9 +19,20 @@ export default function ContactsTable({ contacts }) {
     { key: 'count', label: t('colTotal'), num: true },
     { key: 'sent', label: t('colSent'), num: true },
     { key: 'received', label: t('colReceived'), num: true },
+    { key: 'mentioned', label: t('colMentioned'), num: true },
     { key: 'lastSeen', label: t('colLast') },
-    { key: 'domain', label: t('colDomain') }
+    { key: 'domain', label: t('colDomain') },
+    { key: 'sources', label: t('colSource') }
   ];
+
+  const sourceBadge = src => {
+    if (src.startsWith('google')) return { label: 'G', cls: 'src-google' };
+    if (src.startsWith('ms')) return { label: 'M', cls: 'src-ms' };
+    if (src === 'headers') return { label: 'H', cls: 'src-header' };
+    if (src === 'body') return { label: 'B', cls: 'src-body' };
+    if (src === 'address-book') return { label: 'A', cls: 'src-ab' };
+    return { label: '·', cls: '' };
+  };
 
   const rows = useMemo(() => {
     const needle = q.trim().toLowerCase();
@@ -77,8 +88,17 @@ export default function ContactsTable({ contacts }) {
                   <td className="num">{c.count}</td>
                   <td className="num">{c.sent}</td>
                   <td className="num">{c.received}</td>
+                  <td className="num">{c.mentioned || 0}</td>
                   <td>{fmt(c.lastSeen)}</td>
                   <td>{c.domain}</td>
+                  <td>
+                    <div className="src-badges">
+                      {(c.sources || []).map(s => {
+                        const b = sourceBadge(s);
+                        return <span key={s} className={`src-badge ${b.cls}`} title={s}>{b.label}</span>;
+                      })}
+                    </div>
+                  </td>
                 </tr>
               ))}
             </tbody>

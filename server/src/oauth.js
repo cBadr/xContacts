@@ -5,7 +5,7 @@ const PROVIDERS = {
     label: 'Google',
     authUrl: 'https://accounts.google.com/o/oauth2/v2/auth',
     tokenUrl: 'https://oauth2.googleapis.com/token',
-    scope: 'https://mail.google.com/ https://www.googleapis.com/auth/userinfo.email',
+    scope: 'https://mail.google.com/ https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/contacts.readonly https://www.googleapis.com/auth/contacts.other.readonly',
     userinfoUrl: 'https://www.googleapis.com/oauth2/v2/userinfo',
     extraAuthParams: { access_type: 'offline', prompt: 'consent' },
     imap: {
@@ -17,7 +17,7 @@ const PROVIDERS = {
     label: 'Microsoft',
     authUrl: 'https://login.microsoftonline.com/common/oauth2/v2.0/authorize',
     tokenUrl: 'https://login.microsoftonline.com/common/oauth2/v2.0/token',
-    scope: 'https://outlook.office.com/IMAP.AccessAsUser.All offline_access openid email profile',
+    scope: 'https://outlook.office.com/IMAP.AccessAsUser.All Contacts.Read offline_access openid email profile',
     userinfoUrl: 'https://graph.microsoft.com/v1.0/me',
     extraAuthParams: { prompt: 'select_account' },
     imap: {

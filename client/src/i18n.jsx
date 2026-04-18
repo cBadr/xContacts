@@ -87,7 +87,13 @@ export const MESSAGES = {
     deselectAll: 'Deselect all',
     toggleDirection: 'Toggle inbox/sent direction',
     dirInbox: 'inbox',
-    dirSent: 'sent'
+    dirSent: 'sent',
+    includeAddressBook: 'Import provider address book',
+    includeAddressBookHint: 'Pulls saved Google/Microsoft contacts (requires OAuth sign-in)',
+    deepScan: 'Deep scan (parse message bodies)',
+    deepScanHint: 'Also extract mailto: links and emails mentioned inside bodies. Slower.',
+    colMentioned: 'Mentioned',
+    colSource: 'Source'
   },
   ar: {
     appTitle: 'xContacts',
@@ -175,7 +181,13 @@ export const MESSAGES = {
     deselectAll: 'إلغاء التحديد',
     toggleDirection: 'تبديل الاتجاه (وارد/صادر)',
     dirInbox: 'وارد',
-    dirSent: 'صادر'
+    dirSent: 'صادر',
+    includeAddressBook: 'استيراد دفتر عناوين المزود',
+    includeAddressBookHint: 'يسحب جهات Google/Microsoft المحفوظة (يتطلب تسجيل الدخول بـOAuth)',
+    deepScan: 'فحص عميق (تحليل جسم الرسائل)',
+    deepScanHint: 'استخراج روابط mailto: والإيميلات المذكورة داخل الرسائل. أبطأ.',
+    colMentioned: 'مذكور',
+    colSource: 'المصدر'
   }
 };
 

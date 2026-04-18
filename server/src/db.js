@@ -177,10 +177,13 @@ export function listContacts(accountId) {
       count: c.count,
       sent: c.sent,
       received: c.received,
+      mentioned: c.mentioned || 0,
       firstSeen: c.first_seen,
       lastSeen: c.last_seen,
       lastSubject: c.last_subject || '',
       domain: c.domain || '',
+      organization: c.organization || '',
+      sources: c.sources || [],
       tags: c.tags || []
     }));
 }
@@ -198,12 +201,16 @@ export function upsertContacts(accountId, contacts) {
       existing.count += nc.count;
       existing.sent += nc.sent;
       existing.received += nc.received;
+      existing.mentioned = (existing.mentioned || 0) + (nc.mentioned || 0);
       if (nc.firstSeen && (!existing.first_seen || nc.firstSeen < existing.first_seen)) existing.first_seen = nc.firstSeen;
       if (nc.lastSeen && (!existing.last_seen || nc.lastSeen > existing.last_seen)) {
         existing.last_seen = nc.lastSeen;
         existing.last_subject = nc.lastSubject || existing.last_subject;
       }
       if (nc.domain) existing.domain = nc.domain;
+      if (nc.organization) existing.organization = nc.organization;
+      const merged = new Set([...(existing.sources || []), ...(nc.sources || [])]);
+      existing.sources = Array.from(merged);
     } else {
       const row = {
         id: state.nextId.contacts++,
@@ -214,10 +221,13 @@ export function upsertContacts(accountId, contacts) {
         count: nc.count,
         sent: nc.sent,
         received: nc.received,
+        mentioned: nc.mentioned || 0,
         first_seen: nc.firstSeen || null,
         last_seen: nc.lastSeen || null,
         last_subject: nc.lastSubject || '',
         domain: nc.domain || '',
+        organization: nc.organization || '',
+        sources: nc.sources || [],
         tags: []
       };
       state.contacts.push(row);
