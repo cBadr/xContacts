@@ -50,6 +50,10 @@ const scanSchema = z.object({
   pass: z.string().optional(),
   accessToken: z.string().optional(),
   scan: z.enum(['inbox', 'sent', 'both']).default('both'),
+  folders: z.array(z.object({
+    path: z.string().min(1),
+    direction: z.enum(['inbox', 'sent']).default('inbox')
+  })).optional(),
   inboxMailbox: z.string().default('INBOX'),
   sentMailbox: z.string().default('Sent'),
   since: z.string().nullable().optional(),

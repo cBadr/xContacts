@@ -241,15 +241,22 @@ export async function extractContacts(config, onEvent) {
     }
 
     const plan = [];
-    if (scan === 'inbox' || scan === 'both') {
-      const p = resolveFolder(mailboxes, 'inbox', inboxMailbox);
-      if (p) plan.push({ direction: 'inbox', path: p });
-      else onEvent?.({ type: 'status', message: 'Could not locate Inbox folder; skipping.' });
-    }
-    if (scan === 'sent' || scan === 'both') {
-      const p = resolveFolder(mailboxes, 'sent', sentMailbox);
-      if (p) plan.push({ direction: 'sent', path: p });
-      else onEvent?.({ type: 'status', message: 'No Sent folder detected on this server; skipping. (Try "Sent Items" or "INBOX.Sent" manually.)' });
+    if (Array.isArray(config.folders) && config.folders.length) {
+      for (const f of config.folders) {
+        if (f?.path) plan.push({ direction: f.direction === 'sent' ? 'sent' : 'inbox', path: f.path });
+      }
+      onEvent?.({ type: 'status', message: `Scanning ${plan.length} selected folder(s).` });
+    } else {
+      if (scan === 'inbox' || scan === 'both') {
+        const p = resolveFolder(mailboxes, 'inbox', inboxMailbox);
+        if (p) plan.push({ direction: 'inbox', path: p });
+        else onEvent?.({ type: 'status', message: 'Could not locate Inbox folder; skipping.' });
+      }
+      if (scan === 'sent' || scan === 'both') {
+        const p = resolveFolder(mailboxes, 'sent', sentMailbox);
+        if (p) plan.push({ direction: 'sent', path: p });
+        else onEvent?.({ type: 'status', message: 'No Sent folder detected on this server; skipping.' });
+      }
     }
 
     if (!plan.length) {
@@ -376,6 +383,35 @@ export async function extractContacts(config, onEvent) {
   return result;
 }
 
+const SKIP_BY_DEFAULT = ['\\trash', '\\junk', '\\drafts', '\\archive', '\\flagged', '\\important'];
+const SKIP_NAME = /trash|spam|junk|draft|bulk|deleted/i;
+const SENT_NAME = /sent|outbox|outgoing/i;
+
+export function classifyFolders(mailboxes) {
+  return mailboxes.map(m => {
+    const su = (m.specialUse || '').toLowerCase();
+    const path = m.path || '';
+    let direction = 'inbox';
+    if (su === '\\sent' || SENT_NAME.test(path)) direction = 'sent';
+    const skipBySpecial = SKIP_BY_DEFAULT.includes(su);
+    const skipByName = !su && SKIP_NAME.test(path);
+    const selected = !(skipBySpecial || skipByName);
+    return {
+      path,
+      specialUse: m.specialUse || null,
+      direction,
+      selected,
+      flags: [...(m.flags || [])]
+    };
+  }).sort((a, b) => {
+    if (a.specialUse === '\\Inbox') return -1;
+    if (b.specialUse === '\\Inbox') return 1;
+    if (a.specialUse === '\\Sent') return -1;
+    if (b.specialUse === '\\Sent') return 1;
+    return a.path.localeCompare(b.path);
+  });
+}
+
 export async function testConnection(config) {
   const auth = config.accessToken
     ? { user: config.user, accessToken: config.accessToken }
@@ -397,7 +433,8 @@ export async function testConnection(config) {
       ok: true,
       server: `${client.serverInfo?.name || ''} ${client.serverInfo?.version || ''}`.trim(),
       authenticated: !!client.authenticated,
-      mailboxes: mailboxes.map(m => ({ path: m.path, specialUse: m.specialUse || null, flags: [...(m.flags || [])] }))
+      mailboxes: mailboxes.map(m => ({ path: m.path, specialUse: m.specialUse || null, flags: [...(m.flags || [])] })),
+      folders: classifyFolders(mailboxes)
     };
   } catch (err) {
     return { ok: false, error: classifyError(err), raw: err?.message || String(err), code: err?.code || null };

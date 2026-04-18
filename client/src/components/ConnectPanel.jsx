@@ -2,9 +2,10 @@ import React, { useEffect, useState } from 'react';
 import { getPresets, detectPreset, testConnection, getOAuthProviders, startOAuth, getOAuthToken, revokeOAuth } from '../api.js';
 import { useI18n } from '../i18n.jsx';
 import Section from './Section.jsx';
+import FolderPicker from './FolderPicker.jsx';
 import {
   IconUser, IconMail, IconLock, IconServer, IconScan, IconFilter,
-  IconCalendar, IconInbox, IconSend, IconBoth, IconPlay, IconStop,
+  IconCalendar, IconInbox, IconSend, IconPlay, IconStop,
   IconCheck, IconX, IconHash, IconShield
 } from './icons.jsx';
 
@@ -66,6 +67,8 @@ export default function ConnectPanel({ onScan, scanning, onCancel, prefill, acti
   const [oauthBusy, setOauthBusy] = useState(false);
   const [oauthError, setOauthError] = useState('');
   const [incremental, setIncremental] = useState(false);
+  const [folders, setFolders] = useState([]);
+  const [discovering, setDiscovering] = useState(false);
 
   useEffect(() => {
     getPresets().then(setPresets).catch(() => {});
@@ -139,10 +142,13 @@ export default function ConnectPanel({ onScan, scanning, onCancel, prefill, acti
         accessToken = tk.accessToken;
       } catch (err) { setOauthError(err.message); return; }
     }
+    const selectedFolders = folders.filter(f => f.selected).map(f => ({ path: f.path, direction: f.direction }));
+
     onScan({
       host, port: Number(port), secure, user,
       pass: oauth ? undefined : pass, accessToken,
       scan, inboxMailbox, sentMailbox,
+      folders: selectedFolders.length ? selectedFolders : undefined,
       since: since || null, before: before || null,
       maxPerFolder: Number(maxPerFolder),
       filters: {
@@ -166,14 +172,28 @@ export default function ConnectPanel({ onScan, scanning, onCancel, prefill, acti
     } else body.pass = pass;
     const r = await testConnection(body);
     setTestResult(r);
+    if (r.ok && Array.isArray(r.folders)) setFolders(r.folders);
     setTesting(false);
   };
 
-  const scanModes = [
-    { key: 'inbox', label: t('inboxOnly'), icon: <IconInbox /> },
-    { key: 'sent', label: t('sentOnly'), icon: <IconSend /> },
-    { key: 'both', label: t('both'), icon: <IconBoth /> }
-  ];
+  const discoverFolders = async () => {
+    if (!host || !user || (!pass && !oauth)) {
+      setTestResult({ ok: false, error: 'Enter credentials first.' });
+      return;
+    }
+    setDiscovering(true);
+    let body = { host, port: Number(port), secure, user };
+    if (oauth) {
+      try {
+        const tk = await getOAuthToken(oauth.session);
+        body.accessToken = tk.accessToken;
+      } catch (err) { setDiscovering(false); setTestResult({ ok: false, error: err.message }); return; }
+    } else body.pass = pass;
+    const r = await testConnection(body);
+    if (r.ok && Array.isArray(r.folders)) { setFolders(r.folders); setTestResult({ ok: true, server: r.server, mailboxes: r.mailboxes }); }
+    else setTestResult(r);
+    setDiscovering(false);
+  };
 
   const canSubmit = host && user && (pass || oauth);
 
@@ -267,28 +287,15 @@ export default function ConnectPanel({ onScan, scanning, onCancel, prefill, acti
         </div>
       </Section>
 
-      <Section icon={<IconScan />} title={t('scan')} defaultOpen>
+      <Section icon={<IconScan />} title={t('scan')} defaultOpen badge={folders.filter(f => f.selected).length || null}>
         <Field label={t('foldersToScan')}>
-          <div className="segmented">
-            <div className="segmented-thumb" style={{ transform: `translateX(${scanModes.findIndex(m => m.key === scan) * 100}%)` }} />
-            {scanModes.map(m => (
-              <button type="button" key={m.key}
-                className={`segmented-item ${scan === m.key ? 'active' : ''}`}
-                onClick={() => setScan(m.key)}>
-                {m.icon}<span>{m.label}</span>
-              </button>
-            ))}
-          </div>
+          <FolderPicker
+            folders={folders}
+            onChange={setFolders}
+            onDiscover={discoverFolders}
+            loading={discovering}
+          />
         </Field>
-
-        <div className="grid-2">
-          <Field icon={<IconInbox />} label={t('inboxFolder')}>
-            <input className="input-pro" value={inboxMailbox} onChange={e => setInboxMailbox(e.target.value)} />
-          </Field>
-          <Field icon={<IconSend />} label={t('sentFolder')}>
-            <input className="input-pro" value={sentMailbox} onChange={e => setSentMailbox(e.target.value)} />
-          </Field>
-        </div>
 
         <div className="grid-2">
           <Field icon={<IconCalendar />} label={t('since')}>

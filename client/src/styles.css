@@ -514,6 +514,134 @@ select.input-pro {
 .segmented-item.active { color: #fff; }
 .segmented-item svg { flex-shrink: 0; }
 
+/* ========== FOLDER PICKER ========== */
+.folder-empty {
+  padding: 18px 16px;
+  background: var(--panel-solid);
+  border: 1px dashed var(--border);
+  border-radius: var(--radius-sm);
+  display: flex; flex-direction: column; gap: 12px;
+  align-items: center; text-align: center;
+}
+.folder-empty-text {
+  font-size: 12.5px; color: var(--muted); line-height: 1.6;
+}
+.folder-empty .btn-action { width: 100%; max-width: 240px; }
+
+.folder-picker {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--panel-solid);
+  overflow: hidden;
+  animation: slideUp 0.25s var(--ease);
+}
+.folder-picker-head {
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 12px;
+  background: var(--panel-inner);
+  border-bottom: 1px solid var(--border);
+  font-size: 12px;
+}
+.folder-all {
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 4px 8px; border-radius: 6px;
+  background: transparent; border: none; color: var(--text);
+  font-size: 12px; font-weight: 600;
+  transition: background 0.15s var(--ease);
+}
+.folder-all:hover { background: var(--hover); }
+.folder-stats {
+  margin-inline-start: auto;
+  display: flex; align-items: center; gap: 6px;
+}
+.folder-stats .pill {
+  padding: 3px 8px; display: inline-flex; align-items: center; gap: 4px;
+  font-variant-numeric: tabular-nums;
+}
+.pill-inbox { background: color-mix(in srgb, var(--accent) 14%, transparent); color: var(--accent); }
+.pill-sent { background: color-mix(in srgb, var(--accent-2) 16%, transparent); color: var(--accent-2); }
+.folder-refresh {
+  width: 26px; height: 26px; border-radius: 6px;
+  background: transparent; border: 1px solid var(--border); color: var(--muted);
+  display: grid; place-items: center;
+  transition: all 0.15s var(--ease);
+}
+.folder-refresh:hover:not(:disabled) { color: var(--accent); border-color: var(--accent); background: var(--hover); }
+.folder-refresh:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.folder-check {
+  width: 18px; height: 18px; border-radius: 5px;
+  border: 1.5px solid var(--border-strong);
+  display: grid; place-items: center;
+  color: #fff; flex-shrink: 0;
+  transition: all 0.15s var(--ease);
+  cursor: pointer;
+}
+.folder-check.on {
+  background: linear-gradient(135deg, var(--accent), var(--accent-2));
+  border-color: transparent;
+  box-shadow: 0 2px 6px -2px var(--accent-glow);
+}
+.folder-check.mixed {
+  background: color-mix(in srgb, var(--accent) 40%, transparent);
+  border-color: var(--accent);
+}
+.folder-check .dash {
+  width: 8px; height: 2px; background: #fff; border-radius: 1px;
+}
+
+.folder-list {
+  max-height: 280px; overflow-y: auto;
+}
+.folder-item {
+  display: flex; align-items: center; gap: 10px;
+  padding: 9px 12px;
+  border-bottom: 1px solid var(--border);
+  cursor: pointer; user-select: none;
+  transition: background 0.12s var(--ease);
+  position: relative;
+}
+.folder-item:last-child { border-bottom: none; }
+.folder-item:hover { background: var(--hover); }
+.folder-item.selected::before {
+  content: ''; position: absolute; top: 0; bottom: 0;
+  inset-inline-start: 0; width: 3px;
+  background: linear-gradient(180deg, var(--accent), var(--accent-2));
+}
+.folder-name {
+  flex: 1; min-width: 0;
+  display: flex; align-items: center; gap: 8px;
+  overflow: hidden;
+}
+.folder-path {
+  font-size: 13px; font-weight: 500;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  direction: ltr;
+}
+.folder-special {
+  font-size: 10px; font-weight: 700;
+  padding: 2px 6px; border-radius: 4px;
+  background: color-mix(in srgb, var(--muted) 18%, transparent);
+  color: var(--muted);
+  text-transform: uppercase; letter-spacing: 0.5px;
+  flex-shrink: 0;
+}
+.folder-dir {
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 4px 8px; border-radius: 6px;
+  font-size: 10.5px; font-weight: 700;
+  border: 1px solid var(--border);
+  background: var(--panel-inner);
+  color: var(--muted);
+  text-transform: uppercase; letter-spacing: 0.5px;
+  transition: all 0.15s var(--ease);
+  flex-shrink: 0;
+}
+.folder-dir.inbox { color: var(--accent); border-color: color-mix(in srgb, var(--accent) 35%, var(--border)); }
+.folder-dir.sent { color: var(--accent-2); border-color: color-mix(in srgb, var(--accent-2) 35%, var(--border)); }
+.folder-dir:hover { transform: translateY(-1px); }
+
 /* ========== SWITCH ========== */
 .switch-row {
   display: flex; align-items: center; justify-content: space-between;

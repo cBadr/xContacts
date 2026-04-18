@@ -78,7 +78,16 @@ export const MESSAGES = {
     lastScan: 'Last scan',
     newContacts: '{n} new',
     noScanYet: 'Never scanned',
-    storedLocally: 'Stored locally in SQLite'
+    storedLocally: 'Stored locally in SQLite',
+    folderEmpty: 'Enter credentials above, then click Discover to list folders on the server.',
+    discoverFolders: 'Discover folders',
+    discovering: 'Discovering…',
+    refresh: 'Refresh',
+    selectAll: 'Select all',
+    deselectAll: 'Deselect all',
+    toggleDirection: 'Toggle inbox/sent direction',
+    dirInbox: 'inbox',
+    dirSent: 'sent'
   },
   ar: {
     appTitle: 'xContacts',
@@ -157,7 +166,16 @@ export const MESSAGES = {
     lastScan: 'آخر فحص',
     newContacts: '{n} جديدة',
     noScanYet: 'لم يُفحص بعد',
-    storedLocally: 'محفوظة محلياً في SQLite'
+    storedLocally: 'محفوظة محلياً في SQLite',
+    folderEmpty: 'أدخل بيانات الاعتماد أعلاه، ثم اضغط اكتشاف لعرض مجلدات الخادم.',
+    discoverFolders: 'اكتشاف المجلدات',
+    discovering: 'جارٍ الاكتشاف…',
+    refresh: 'تحديث',
+    selectAll: 'تحديد الكل',
+    deselectAll: 'إلغاء التحديد',
+    toggleDirection: 'تبديل الاتجاه (وارد/صادر)',
+    dirInbox: 'وارد',
+    dirSent: 'صادر'
   }
 };
 
