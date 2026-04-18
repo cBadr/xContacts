@@ -1,12 +1,9 @@
-# Caddy config — automatic HTTPS via Let's Encrypt.
-# Replace xcontacts.example.com with your real domain.
-# For bare-IP testing, use ":80 { … }" instead.
-
-xcontacts.example.com {
+# Caddy config — automatic HTTPS via Let's Encrypt for leads.orcax.click
+leads.orcax.click {
     encode zstd gzip
 
     # SSE streams (scan progress) must NOT be buffered.
-    reverse_proxy app:5174 {
+    reverse_proxy 127.0.0.1:5174 {
         flush_interval -1
         transport http {
             read_timeout 10m
@@ -14,7 +11,6 @@ xcontacts.example.com {
         }
     }
 
-    # Security headers
     header {
         Strict-Transport-Security "max-age=31536000; includeSubDomains"
         X-Content-Type-Options "nosniff"
@@ -23,7 +19,7 @@ xcontacts.example.com {
     }
 
     log {
-        output file /data/access.log
+        output file /var/log/caddy/leads.orcax.click.log
         format json
     }
 }

@@ -1,23 +1,26 @@
-# nginx reverse-proxy for xContacts. Drop this into /etc/nginx/sites-available/
-# and adjust server_name + SSL certs (e.g. certbot).
+# nginx reverse-proxy for xContacts — leads.orcax.click
+# ثبّت في /etc/nginx/sites-available/leads.orcax.click ثم فعّله.
 
 server {
     listen 80;
     listen [::]:80;
-    server_name xcontacts.example.com;
-    return 301 https://$host$request_uri;
+    server_name leads.orcax.click;
+
+    # Let's Encrypt ACME
+    location /.well-known/acme-challenge/ { root /var/www/html; }
+
+    location / { return 301 https://$host$request_uri; }
 }
 
 server {
     listen 443 ssl http2;
     listen [::]:443 ssl http2;
-    server_name xcontacts.example.com;
+    server_name leads.orcax.click;
 
-    ssl_certificate     /etc/letsencrypt/live/xcontacts.example.com/fullchain.pem;
-    ssl_certificate_key /etc/letsencrypt/live/xcontacts.example.com/privkey.pem;
+    ssl_certificate     /etc/letsencrypt/live/leads.orcax.click/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/leads.orcax.click/privkey.pem;
     ssl_protocols TLSv1.2 TLSv1.3;
 
-    # Security headers
     add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
     add_header X-Content-Type-Options "nosniff" always;
     add_header Referrer-Policy "strict-origin-when-cross-origin" always;

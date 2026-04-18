@@ -22,7 +22,7 @@ NoNewPrivileges=true
 ProtectSystem=strict
 ProtectHome=true
 PrivateTmp=true
-ReadWritePaths=/opt/xcontacts/server/data /opt/xcontacts/server/logs
+ReadWritePaths=/opt/xcontacts/server/data /opt/xcontacts/server/logs /opt/xcontacts/client/dist
 
 [Install]
 WantedBy=multi-user.target
