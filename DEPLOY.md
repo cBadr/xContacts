@@ -1,178 +1,177 @@
 # Deployment Guide
 
-## Architecture
+xContacts ships as a **single-origin** app: the Node server serves the built React UI *and* the `/api/*` routes from the **same port and domain**. No separate frontend hosting needed.
 
-xContacts has **two separate parts**:
-
-- **Frontend** (`client/`) — static React build. Goes on Vercel/Netlify/any static host.
-- **Backend** (`server/`) — long-lived Node process with SQLite, SSE streams, OAuth callbacks, IMAP sockets. **Does NOT run on Vercel serverless.** Needs a real host with persistent disk.
-
-**You must deploy BOTH.** Vercel alone = empty providers list, broken scans.
+```
+Browser  →  https://xcontacts.example.com  →  Caddy/nginx :443  →  Node :5174
+                                                                     ├─ serves /            → client/dist
+                                                                     └─ serves /api/*       → Express
+```
 
 ---
 
-## 🚀 Fastest path: Fly.io (free) + Vercel (free)
+## Option A — Docker (recommended)
 
-### Step 1 — Deploy backend to Fly.io
-
-```bash
-# Install flyctl: https://fly.io/docs/hands-on/install-flyctl/
-# Sign up (free): fly auth signup
-
-cd server
-fly launch --no-deploy --copy-config
-# Accept the defaults. Choose a region close to you.
-
-# Create persistent disk for SQLite
-fly volume create xcontacts_data --size 1 --region <same-region-as-app>
-
-# Set secrets (OAuth is optional — skip if you only use passwords)
-fly secrets set \
-  CORS_ORIGIN=https://YOUR-APP.vercel.app \
-  OAUTH_REDIRECT_BASE=https://YOUR-APP-NAME.fly.dev \
-  GOOGLE_CLIENT_ID=... \
-  GOOGLE_CLIENT_SECRET=... \
-  MICROSOFT_CLIENT_ID=... \
-  MICROSOFT_CLIENT_SECRET=...
-
-fly deploy
-```
-
-After deploy, your backend is live at `https://YOUR-APP-NAME.fly.dev`. Test it:
-```
-curl https://YOUR-APP-NAME.fly.dev/api/health
-# → {"ok":true,"version":"1.0.0"}
-```
-
-### Step 2 — Deploy frontend to Vercel
-
-1. Push the repo to GitHub.
-2. Import the repo into Vercel.
-3. In **Project Settings → Environment Variables**, add:
-   ```
-   VITE_API_URL=https://YOUR-APP-NAME.fly.dev
-   ```
-4. Edit [`vercel.json`](vercel.json) — replace `REPLACE-WITH-YOUR-BACKEND.example.com` with `YOUR-APP-NAME.fly.dev`.
-5. Deploy.
-
-### Step 3 — Update OAuth redirect URIs
-
-- **Google Cloud Console** → Credentials → your OAuth client → add authorized redirect URI:
-  `https://YOUR-APP-NAME.fly.dev/api/oauth/callback`
-- **Azure/Entra** → App registration → Authentication → Web → Redirect URIs: same URL.
-
-Now reload the Vercel site — the banner should disappear, and the providers list populates.
-
----
-
-## Alternative 1 — Render.com
-
-Free tier doesn't persist disks, so use their managed PostgreSQL (future option) or the paid Starter plan ($7/mo) for a persistent disk.
-
-```yaml
-# render.yaml
-services:
-  - type: web
-    name: xcontacts-server
-    runtime: node
-    rootDir: server
-    buildCommand: npm install
-    startCommand: npm start
-    envVars:
-      - key: NODE_ENV
-        value: production
-      - key: XC_DATA_DIR
-        value: /var/data
-    disk:
-      name: xcontacts-data
-      mountPath: /var/data
-      sizeGB: 1
-```
-
-## Alternative 2 — Docker on any VPS (Hetzner, DO, Linode)
+One container, one command.
 
 ```bash
-# On any $4/month VPS:
 git clone https://github.com/YOU/xcontacts.git
-cd xcontacts/server
-cp .env.example .env   # edit with your values
-docker build -t xcontacts-server .
-docker run -d --name xcontacts \
-  -p 5174:5174 \
-  -v xcontacts-data:/data \
-  --env-file .env \
-  --restart unless-stopped \
-  xcontacts-server
+cd xcontacts
+cp .env.example .env
+nano .env          # set PUBLIC_URL, OAuth keys…
+
+docker compose up -d --build
 ```
 
-Put nginx/Caddy in front for TLS. Point your `VITE_API_URL` at the public URL.
+Check it: `curl http://YOUR-IP:5174/api/health` → `{"ok":true}`.
 
-## Alternative 3 — Windows Server (now dependency-free!)
+Browse to `http://YOUR-IP:5174`. The React UI loads, the API works, everything talks same-origin.
 
-**Version 1.1 removed the native SQLite dependency** — the server now uses a pure-JS JSON store. No Visual Studio, no Python, no node-gyp. Any LTS Node works (18, 20, 22, 24).
+### Add HTTPS automatically (Caddy)
+
+Uncomment the `caddy:` block in [docker-compose.yml](docker-compose.yml), edit [Caddyfile](Caddyfile) with your real domain, point DNS at the server, then:
+
+```bash
+docker compose up -d
+```
+
+Caddy fetches a Let's Encrypt cert automatically. Done. Remember to update `PUBLIC_URL` to `https://your-domain.com` and re-register the redirect URI in Google/Azure.
+
+---
+
+## Option B — Bare Linux VPS (systemd)
+
+```bash
+# 1. Install Node 20 LTS
+curl -fsSL https://deb.nodesource.com/setup_20.x | sudo bash -
+sudo apt install -y nodejs
+
+# 2. Clone + build
+sudo mkdir -p /opt/xcontacts && sudo chown $USER /opt/xcontacts
+git clone https://github.com/YOU/xcontacts.git /opt/xcontacts
+cd /opt/xcontacts
+cp .env.example .env
+nano .env          # PUBLIC_URL, OAuth keys, PORT
+
+npm run install:all
+npm run build
+
+# 3. Install as a systemd service
+sudo cp xcontacts.service /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable --now xcontacts
+
+# 4. Put nginx in front for HTTPS (edit server_name first)
+sudo cp nginx.conf.example /etc/nginx/sites-available/xcontacts
+sudo ln -s /etc/nginx/sites-available/xcontacts /etc/nginx/sites-enabled/
+sudo certbot --nginx -d xcontacts.example.com
+sudo systemctl reload nginx
+```
+
+To update later:
+```bash
+cd /opt/xcontacts && node scripts/deploy.js
+```
+
+---
+
+## Option C — Windows Server
 
 ```powershell
-# 1. Install Node LTS from https://nodejs.org (any recent version)
-# 2. Clone/download the repo:
-git clone https://github.com/YOU/xcontacts.git
-cd xcontacts\server
-
-# 3. One-click install + start:
-run.bat
-
-# OR manually:
-npm install
+# 1. Install Node 20 LTS from https://nodejs.org
+# 2. Clone + configure
+git clone https://github.com/YOU/xcontacts.git C:\xcontacts
+cd C:\xcontacts
 copy .env.example .env
 notepad .env
-node src\index.js
-```
 
-**Run as a Windows service** with PM2:
+# 3. Install + build
+npm run install:all
+npm run build
 
-```powershell
+# 4. Install PM2 as a Windows service
 npm install -g pm2 pm2-windows-startup
 pm2-startup install
-cd xcontacts\server
-pm2 start ecosystem.config.cjs
+pm2 start server\ecosystem.config.cjs
 pm2 save
+
+# 5. Redeploy on update
+deploy.bat
 ```
 
-Logs land in `server/logs/`. Data in `server/data/xcontacts.json` (+ `.bak`).
+Open Windows Firewall for the chosen port (default 5174), or put IIS/Caddy in front for TLS.
 
-Put IIS/nginx/Caddy in front for TLS + reverse proxy.
+---
+
+## Option D — Bare IP, no domain (testing)
+
+If you just want it running on `http://203.0.113.10:5174`:
+
+```bash
+# .env
+PUBLIC_URL=http://203.0.113.10:5174
+PORT=5174
+HOST=0.0.0.0
+```
+
+Then `npm run preview` (or any option above). OAuth will still work **only** if you register `http://203.0.113.10:5174/api/oauth/callback` in Google/Azure — some providers refuse non-HTTPS except for `localhost`. Use HTTPS for real deployments.
+
+---
+
+## Required environment variables
+
+| Key | Purpose |
+|-----|---------|
+| `PUBLIC_URL` | External URL browsers hit. Drives OAuth redirect and CORS. |
+| `PORT`, `HOST` | Where Node binds. Default `5174` / `0.0.0.0`. |
+| `NODE_ENV=production` | Enables caching, disables dev logging. |
+| `TRUST_PROXY=1` | Required when behind Caddy/nginx/Cloudflare so rate-limit sees real IPs. |
+| `XC_DATA_DIR` | Where the JSON store lives. Use a persistent path. |
+| `GOOGLE_CLIENT_ID/SECRET`, `MICROSOFT_CLIENT_ID/SECRET` | OAuth keys (optional — only needed if you want 1-click sign-in). |
+
+---
+
+## OAuth redirect URIs — must register exactly
+
+- Google Cloud Console → Credentials → Your OAuth client → **Authorized redirect URIs**:
+  `https://xcontacts.example.com/api/oauth/callback`
+- Azure/Entra → App registration → Authentication → Web → **Redirect URIs**: same URL.
+
+Any mismatch (http vs https, trailing slash, wrong port) → `redirect_uri_mismatch` error.
+
+---
+
+## Verifying it works
+
+```bash
+# Health check
+curl https://xcontacts.example.com/api/health
+# → {"ok":true,"version":"1.0.0"}
+
+# UI loads
+curl -I https://xcontacts.example.com
+# → HTTP/2 200, content-type: text/html
+```
+
+Browse the URL — you should see the full xContacts UI, the orange backend banner should NOT appear, the providers list should populate if OAuth keys are set.
+
+---
+
+## Updating after deploy
+
+| Scenario | Command |
+|---|---|
+| Docker compose | `git pull && docker compose up -d --build` |
+| Linux + systemd | `node scripts/deploy.js` |
+| Windows + PM2 | `deploy.bat` |
+| Any | Manually: `git pull && npm run install:all && npm run build && restart-service` |
 
 ---
 
 ## Troubleshooting
 
-### "Providers list is empty" on Vercel
-- The frontend can't reach the backend. Check the orange banner in the UI.
-- Verify `VITE_API_URL` is set in Vercel (must start with `https://`).
-- Rebuild/redeploy Vercel after changing env vars — Vite bakes them at build time.
-
-### "CORS error" in browser console
-- Set `CORS_ORIGIN=https://your-app.vercel.app` on the backend and restart it.
-
-### "OAuth popup says redirect_uri mismatch"
-- The URI registered in Google/Azure must match `OAUTH_REDIRECT_BASE + /api/oauth/callback` exactly (no trailing slash, same scheme).
-
-### Original Vercel build error `sh: line 1: vite: command not found`
-Fixed already:
-- Root `build` script now installs client deps first.
-- The circular `"xcontacts": "file:.."` dependency was removed.
-
-### Old note: `better-sqlite3` build errors on Windows
-No longer applicable — the server dropped the native SQLite module in v1.1 and uses a pure-JS JSON store. If you upgraded from an older version, just `rm -rf server/node_modules` and `npm install` again. Your existing `data/xcontacts.db` file will be ignored (data is now `data/xcontacts.json`).
-
----
-
-## Local development
-
-```bash
-cd xcontacts
-npm run install:all
-npm run dev        # both server + client
-# OR
-npm run dev:server # server only
-npm run dev:client # client only (in a second terminal)
-```
+- **`EACCES` on port 80/443** → bind to 5174 and let Caddy/nginx handle 80/443.
+- **OAuth popup shows `redirect_uri_mismatch`** → URI in provider console ≠ `PUBLIC_URL + /api/oauth/callback`.
+- **Rate-limit blocks you from your own IP** → behind a proxy without `TRUST_PROXY=1`, every request looks like `127.0.0.1` until you set the flag.
+- **SSE scan stalls / no progress events** → nginx must have `proxy_buffering off;` (already in the provided example).
+- **Data disappears after docker restart** → you skipped the `xcontacts_data` volume. Never rely on container FS.

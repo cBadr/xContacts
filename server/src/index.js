@@ -1,8 +1,18 @@
-import 'dotenv/config';
+import dotenv from 'dotenv';
 import express from 'express';
 import cors from 'cors';
 import rateLimit from 'express-rate-limit';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { existsSync } from 'node:fs';
 import { z } from 'zod';
+
+// Load .env from server/.env first, then fall back to the repo root .env.
+const __bootstrap_dir = path.dirname(fileURLToPath(import.meta.url));
+for (const p of [
+  path.resolve(__bootstrap_dir, '../.env'),
+  path.resolve(__bootstrap_dir, '../../.env')
+]) if (existsSync(p)) dotenv.config({ path: p, override: false });
 import { IMAP_PRESETS, detectPreset } from './presets.js';
 import { extractContacts, testConnection, toCSV, toVCF, toEmailList } from './extractor.js';
 import { listConfiguredProviders, buildAuthUrl, exchangeCode, refreshAccessToken, getProvider } from './oauth.js';
@@ -16,12 +26,16 @@ import {
 
 const app = express();
 const PORT = Number(process.env.PORT) || 5174;
-const CORS_ORIGIN = process.env.CORS_ORIGIN || 'http://localhost:5173';
+const HOST = process.env.HOST || '0.0.0.0';
+const NODE_ENV = process.env.NODE_ENV || 'development';
+const IS_PROD = NODE_ENV === 'production';
+const CORS_ORIGIN = process.env.CORS_ORIGIN || (IS_PROD ? true : 'http://localhost:5173');
 const MAX_FETCH = Number(process.env.MAX_FETCH_PER_FOLDER) || 5000;
 
+app.set('trust proxy', Number(process.env.TRUST_PROXY || 1));
 app.use(cors({ origin: CORS_ORIGIN, credentials: false }));
 app.use(express.json({ limit: '2mb' }));
-app.use('/api/', rateLimit({ windowMs: 60_000, max: 30 }));
+app.use('/api/', rateLimit({ windowMs: 60_000, max: 30, standardHeaders: true, legacyHeaders: false }));
 
 const sessions = new Map(); // token -> { contacts, createdAt }
 const SESSION_TTL = 30 * 60_000;
@@ -97,8 +111,10 @@ setInterval(() => {
 }, 60_000).unref();
 
 function oauthRedirectUri(req) {
-  const base = process.env.OAUTH_REDIRECT_BASE || `${req.protocol}://${req.get('host')}`;
-  return `${base}/api/oauth/callback`;
+  const base = process.env.OAUTH_REDIRECT_BASE
+    || process.env.PUBLIC_URL
+    || `${req.protocol}://${req.get('host')}`;
+  return `${base.replace(/\/+$/, '')}/api/oauth/callback`;
 }
 
 app.get('/api/oauth/providers', (_req, res) => {
@@ -329,6 +345,28 @@ app.use((err, _req, res, _next) => {
   res.status(500).json({ error: err?.message || 'Internal error' });
 });
 
+// ========== Serve built client (single-origin production) ==========
+const CLIENT_DIST = process.env.CLIENT_DIR
+  ? path.resolve(process.env.CLIENT_DIR)
+  : path.resolve(__bootstrap_dir, '../../client/dist');
+const SERVE_CLIENT = (process.env.SERVE_CLIENT ?? 'true') !== 'false';
+
+if (SERVE_CLIENT && existsSync(CLIENT_DIST)) {
+  const indexHtml = path.join(CLIENT_DIST, 'index.html');
+  app.use(express.static(CLIENT_DIST, {
+    index: false,
+    maxAge: IS_PROD ? '1y' : 0,
+    setHeaders(res, filePath) {
+      if (filePath.endsWith('index.html')) res.setHeader('Cache-Control', 'no-cache');
+    }
+  }));
+  app.get(/^\/(?!api\/).*/, (_req, res) => res.sendFile(indexHtml));
+  console.log(`[server] serving UI from ${CLIENT_DIST}`);
+} else if (SERVE_CLIENT) {
+  console.log(`[server] UI build not found at ${CLIENT_DIST} — run "npm run build" to create it.`);
+}
+
+// ========== Global error guards ==========
 process.on('uncaughtException', err => {
   console.error('[uncaughtException]', err?.message || err);
 });
@@ -336,6 +374,8 @@ process.on('unhandledRejection', err => {
   console.error('[unhandledRejection]', err?.message || err);
 });
 
-app.listen(PORT, () => {
-  console.log(`xContacts server listening on http://localhost:${PORT}`);
+app.listen(PORT, HOST, () => {
+  const shown = HOST === '0.0.0.0' ? 'localhost' : HOST;
+  console.log(`xContacts server listening on http://${shown}:${PORT}  [${NODE_ENV}]`);
+  if (process.env.PUBLIC_URL) console.log(`Public URL:        ${process.env.PUBLIC_URL}`);
 });

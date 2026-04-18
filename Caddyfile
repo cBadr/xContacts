@@ -1,0 +1,29 @@
+# Caddy config — automatic HTTPS via Let's Encrypt.
+# Replace xcontacts.example.com with your real domain.
+# For bare-IP testing, use ":80 { … }" instead.
+
+xcontacts.example.com {
+    encode zstd gzip
+
+    # SSE streams (scan progress) must NOT be buffered.
+    reverse_proxy app:5174 {
+        flush_interval -1
+        transport http {
+            read_timeout 10m
+            response_header_timeout 10m
+        }
+    }
+
+    # Security headers
+    header {
+        Strict-Transport-Security "max-age=31536000; includeSubDomains"
+        X-Content-Type-Options "nosniff"
+        Referrer-Policy "strict-origin-when-cross-origin"
+        Permissions-Policy "geolocation=(), microphone=(), camera=()"
+    }
+
+    log {
+        output file /data/access.log
+        format json
+    }
+}

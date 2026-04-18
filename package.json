@@ -2,18 +2,23 @@
   "name": "xcontacts",
   "version": "1.0.0",
   "private": true,
+  "type": "module",
   "description": "Professional email contact extractor — scan IMAP mailboxes and harvest contacts",
   "scripts": {
     "install:all": "npm install && npm --prefix server install && npm --prefix client install",
     "dev": "concurrently -n server,client -c blue,magenta \"npm --prefix server run dev\" \"npm --prefix client run dev\"",
     "dev:server": "npm --prefix server run dev",
     "dev:client": "npm --prefix client run dev",
-    "start": "npm --prefix server start",
     "build": "npm --prefix client install --include=dev && npm --prefix client run build",
+    "start": "node server/src/index.js",
+    "start:prod": "cross-env NODE_ENV=production node server/src/index.js",
+    "preview": "npm run build && npm run start:prod",
+    "deploy": "node scripts/deploy.js",
     "vercel-build": "npm --prefix client install --include=dev && npm --prefix client run build"
   },
   "devDependencies": {
-    "concurrently": "^8.2.2"
+    "concurrently": "^8.2.2",
+    "cross-env": "^7.0.3"
   },
   "engines": {
     "node": ">=18.17.0"

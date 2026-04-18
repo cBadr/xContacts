@@ -1,0 +1,28 @@
+[Unit]
+Description=xContacts - Email Contact Extractor
+Documentation=https://github.com/YOU/xcontacts
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=www-data
+Group=www-data
+WorkingDirectory=/opt/xcontacts
+EnvironmentFile=/opt/xcontacts/.env
+ExecStart=/usr/bin/node server/src/index.js
+Restart=on-failure
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=xcontacts
+
+# Hardening
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+ReadWritePaths=/opt/xcontacts/server/data /opt/xcontacts/server/logs
+
+[Install]
+WantedBy=multi-user.target
