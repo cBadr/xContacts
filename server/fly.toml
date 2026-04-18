@@ -1,0 +1,46 @@
+# fly.toml — deploy xContacts backend on Fly.io
+# Free tier includes 3 VMs and 3GB persistent volumes.
+# Steps:
+#   1. Install flyctl:   https://fly.io/docs/hands-on/install-flyctl/
+#   2. cd server
+#   3. fly launch --no-deploy --copy-config
+#   4. fly volume create xcontacts_data --size 1 --region <your-region>
+#   5. fly secrets set GOOGLE_CLIENT_ID=... GOOGLE_CLIENT_SECRET=... \
+#        MICROSOFT_CLIENT_ID=... MICROSOFT_CLIENT_SECRET=... \
+#        OAUTH_REDIRECT_BASE=https://<app-name>.fly.dev \
+#        CORS_ORIGIN=https://<your-vercel-app>.vercel.app
+#   6. fly deploy
+
+app = "xcontacts-server"
+primary_region = "fra"
+
+[build]
+  dockerfile = "Dockerfile"
+
+[env]
+  NODE_ENV = "production"
+  PORT = "5174"
+  XC_DATA_DIR = "/data"
+
+[[mounts]]
+  source = "xcontacts_data"
+  destination = "/data"
+
+[http_service]
+  internal_port = 5174
+  force_https = true
+  auto_stop_machines = "stop"
+  auto_start_machines = true
+  min_machines_running = 0
+
+  [[http_service.checks]]
+    grace_period = "10s"
+    interval = "30s"
+    method = "GET"
+    timeout = "5s"
+    path = "/api/health"
+
+[[vm]]
+  cpu_kind = "shared"
+  cpus = 1
+  memory_mb = 512

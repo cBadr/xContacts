@@ -1,53 +1,101 @@
 # Deployment Guide
 
-xContacts has two parts:
+## Architecture
 
-- **Frontend** (`client/`) — static React/Vite build. Fine for Vercel/Netlify/Cloudflare Pages.
-- **Backend** (`server/`) — long-lived Node.js process with SQLite, SSE streams, and OAuth callbacks. **Cannot run on Vercel serverless** (no persistent disk, SSE/streams are cut, IMAP holds open TCP sockets). It needs a real host: VPS, Windows Server, Railway, Render, Fly.io, Docker.
+xContacts has **two separate parts**:
 
-## 1. Deploy the Backend first
+- **Frontend** (`client/`) — static React build. Goes on Vercel/Netlify/any static host.
+- **Backend** (`server/`) — long-lived Node process with SQLite, SSE streams, OAuth callbacks, IMAP sockets. **Does NOT run on Vercel serverless.** Needs a real host with persistent disk.
 
-The frontend needs a public URL to call, so deploy the backend first and note its URL.
+**You must deploy BOTH.** Vercel alone = empty providers list, broken scans.
 
-### Option A — Windows Server (what you tried)
+---
 
-```powershell
-# 1. Install Node.js 20 LTS from https://nodejs.org
-# 2. Install build tools for better-sqlite3 (needed because sqlite compiles natively):
-npm install --global --production windows-build-tools
-# Or install "Desktop development with C++" from Visual Studio Build Tools + Python 3
+## 🚀 Fastest path: Fly.io (free) + Vercel (free)
 
-# 3. Clone and install
-git clone https://github.com/YOU/xcontacts.git
-cd xcontacts\server
-npm install
-
-# 4. Configure environment
-copy .env.example .env
-# Edit .env to set OAUTH_REDIRECT_BASE=https://api.yourdomain.com and OAuth credentials
-
-# 5. Run
-npm start
-```
-
-**Run as a Windows service** with PM2:
-
-```powershell
-npm install -g pm2 pm2-windows-startup
-pm2-startup install
-cd xcontacts\server
-pm2 start ecosystem.config.cjs
-pm2 save
-```
-
-PM2 will auto-start the server on reboot. Logs live in `server/logs/`.
-
-**Firewall:** allow inbound TCP on the port in `.env` (default 5174), and put it behind IIS/nginx/Caddy for TLS.
-
-### Option B — Docker (recommended)
+### Step 1 — Deploy backend to Fly.io
 
 ```bash
+# Install flyctl: https://fly.io/docs/hands-on/install-flyctl/
+# Sign up (free): fly auth signup
+
+cd server
+fly launch --no-deploy --copy-config
+# Accept the defaults. Choose a region close to you.
+
+# Create persistent disk for SQLite
+fly volume create xcontacts_data --size 1 --region <same-region-as-app>
+
+# Set secrets (OAuth is optional — skip if you only use passwords)
+fly secrets set \
+  CORS_ORIGIN=https://YOUR-APP.vercel.app \
+  OAUTH_REDIRECT_BASE=https://YOUR-APP-NAME.fly.dev \
+  GOOGLE_CLIENT_ID=... \
+  GOOGLE_CLIENT_SECRET=... \
+  MICROSOFT_CLIENT_ID=... \
+  MICROSOFT_CLIENT_SECRET=...
+
+fly deploy
+```
+
+After deploy, your backend is live at `https://YOUR-APP-NAME.fly.dev`. Test it:
+```
+curl https://YOUR-APP-NAME.fly.dev/api/health
+# → {"ok":true,"version":"1.0.0"}
+```
+
+### Step 2 — Deploy frontend to Vercel
+
+1. Push the repo to GitHub.
+2. Import the repo into Vercel.
+3. In **Project Settings → Environment Variables**, add:
+   ```
+   VITE_API_URL=https://YOUR-APP-NAME.fly.dev
+   ```
+4. Edit [`vercel.json`](vercel.json) — replace `REPLACE-WITH-YOUR-BACKEND.example.com` with `YOUR-APP-NAME.fly.dev`.
+5. Deploy.
+
+### Step 3 — Update OAuth redirect URIs
+
+- **Google Cloud Console** → Credentials → your OAuth client → add authorized redirect URI:
+  `https://YOUR-APP-NAME.fly.dev/api/oauth/callback`
+- **Azure/Entra** → App registration → Authentication → Web → Redirect URIs: same URL.
+
+Now reload the Vercel site — the banner should disappear, and the providers list populates.
+
+---
+
+## Alternative 1 — Render.com
+
+Free tier doesn't persist disks, so use their managed PostgreSQL (future option) or the paid Starter plan ($7/mo) for a persistent disk.
+
+```yaml
+# render.yaml
+services:
+  - type: web
+    name: xcontacts-server
+    runtime: node
+    rootDir: server
+    buildCommand: npm install
+    startCommand: npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: XC_DATA_DIR
+        value: /var/data
+    disk:
+      name: xcontacts-data
+      mountPath: /var/data
+      sizeGB: 1
+```
+
+## Alternative 2 — Docker on any VPS (Hetzner, DO, Linode)
+
+```bash
+# On any $4/month VPS:
+git clone https://github.com/YOU/xcontacts.git
 cd xcontacts/server
+cp .env.example .env   # edit with your values
 docker build -t xcontacts-server .
 docker run -d --name xcontacts \
   -p 5174:5174 \
@@ -57,61 +105,63 @@ docker run -d --name xcontacts \
   xcontacts-server
 ```
 
-The `/data` volume persists the SQLite database across restarts.
+Put nginx/Caddy in front for TLS. Point your `VITE_API_URL` at the public URL.
 
-### Option C — Railway / Render / Fly.io
-
-- Create a new Node service from the GitHub repo.
-- Root directory: `server`
-- Build command: `npm install`
-- Start command: `npm start`
-- Add a persistent disk mounted at `/data` and set `XC_DATA_DIR=/data`.
-- Set all env vars from `server/.env.example`.
-
-## 2. Deploy the Frontend to Vercel
-
-1. Import the GitHub repo in Vercel.
-2. **Framework Preset:** None (use the included `vercel.json`).
-3. **Root directory:** keep as repo root — `vercel.json` handles it.
-4. **Environment variable:** set `VITE_API_URL` to your backend's public URL, e.g. `https://xcontacts-api.yourdomain.com`.
-5. **Edit `vercel.json`** — replace `REPLACE-WITH-YOUR-BACKEND.example.com` with the same URL (this enables the `/api/*` rewrite so the same-origin cookies/CORS are simpler).
-6. Deploy.
-
-After deploy, go back to your backend's `.env` and:
-
-- Set `CORS_ORIGIN=https://your-vercel-app.vercel.app`
-- Set `OAUTH_REDIRECT_BASE=https://your-vercel-app.vercel.app` (must match what you register in Google/Microsoft consoles)
-- Update the **Authorized redirect URI** in Google Cloud + Azure to `https://your-vercel-app.vercel.app/api/oauth/callback`
-
-Restart the backend and the OAuth flow will work end-to-end.
-
-## Why the original Vercel build failed
-
-Your error was:
-
-```
-sh: line 1: vite: command not found
-Error: Command "npm run build" exited with 127
-```
-
-Two causes:
-
-1. **Root `package.json` didn't install client deps** before building. Fixed: the new `build` script does `npm --prefix client install --include=dev && npm --prefix client run build`.
-2. **A circular `"xcontacts": "file:.."` dependency** was inserted in `client/package.json` and `server/package.json`. That made `npm install` loop. Removed.
-
-## Local development (Windows-friendly)
+## Alternative 3 — Windows Server
 
 ```powershell
-cd xcontacts
-npm run install:all
+# Install Node 20 LTS from nodejs.org
+# Install VS Build Tools + Python 3 if better-sqlite3 fails to build.
 
-# Start server only (uses Node's built-in --watch, no nodemon/concurrently needed)
-npm run dev:server
+git clone https://github.com/YOU/xcontacts.git
+cd xcontacts\server
+npm install
+copy .env.example .env
+notepad .env
 
-# In another terminal
-npm run dev:client
+# Run as a service with PM2:
+npm install -g pm2 pm2-windows-startup
+pm2-startup install
+pm2 start ecosystem.config.cjs
+pm2 save
 ```
 
-Or both at once with `npm run dev` (requires `concurrently`, which now works on Windows because we only use `--prefix` flags).
+Put IIS/nginx in front for TLS + reverse proxy.
 
-If `better-sqlite3` fails to install on Windows because node-gyp can't find a compiler, install the Visual Studio Build Tools + Python 3 once, then re-run `npm install` inside `server/`. Prebuilt binaries exist for Node 18/20/22 x64, so this usually isn't needed.
+---
+
+## Troubleshooting
+
+### "Providers list is empty" on Vercel
+- The frontend can't reach the backend. Check the orange banner in the UI.
+- Verify `VITE_API_URL` is set in Vercel (must start with `https://`).
+- Rebuild/redeploy Vercel after changing env vars — Vite bakes them at build time.
+
+### "CORS error" in browser console
+- Set `CORS_ORIGIN=https://your-app.vercel.app` on the backend and restart it.
+
+### "OAuth popup says redirect_uri mismatch"
+- The URI registered in Google/Azure must match `OAUTH_REDIRECT_BASE + /api/oauth/callback` exactly (no trailing slash, same scheme).
+
+### Original Vercel build error `sh: line 1: vite: command not found`
+Fixed already:
+- Root `build` script now installs client deps first.
+- The circular `"xcontacts": "file:.."` dependency was removed.
+
+### `better-sqlite3` fails to install
+- Use Node 18/20/22 x64 — prebuilt binaries exist.
+- On Windows: install [Visual Studio Build Tools](https://visualstudio.microsoft.com/downloads/#build-tools-for-visual-studio-2022) with the "Desktop development with C++" workload, plus Python 3.
+- On Alpine/musl: use `node:20-bookworm-slim` (the included Dockerfile does this).
+
+---
+
+## Local development
+
+```bash
+cd xcontacts
+npm run install:all
+npm run dev        # both server + client
+# OR
+npm run dev:server # server only
+npm run dev:client # client only (in a second terminal)
+```

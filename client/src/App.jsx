@@ -3,6 +3,7 @@ import ConnectPanel from './components/ConnectPanel.jsx';
 import ContactsTable from './components/ContactsTable.jsx';
 import TopBar from './components/TopBar.jsx';
 import AccountsBar from './components/AccountsBar.jsx';
+import BackendStatus from './components/BackendStatus.jsx';
 import {
   scanStream, exportUrl, accountExportUrl,
   listAccounts, getAccount, deleteAccount
@@ -116,6 +117,7 @@ export default function App() {
   return (
     <div className="app">
       <TopBar />
+      <BackendStatus />
 
       <AccountsBar
         accounts={accounts}
