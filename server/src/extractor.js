@@ -526,9 +526,16 @@ export async function testConnection(config) {
 }
 
 export function toCSV(contacts) {
-  const headers = ['email', 'name', 'count', 'sent', 'received', 'firstSeen', 'lastSeen', 'domain', 'lastSubject'];
+  const headers = [
+    'email', 'name', 'count', 'sent', 'received', 'mentioned',
+    'firstSeen', 'lastSeen', 'domain', 'organization',
+    'lastSubject', 'sources', 'accounts', 'aliases'
+  ];
   const esc = v => {
-    const s = v == null ? '' : String(v);
+    if (v == null) return '';
+    let s;
+    if (Array.isArray(v)) s = v.join('; ');
+    else s = String(v);
     return /[",\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
   };
   const lines = [headers.join(',')];
@@ -536,18 +543,43 @@ export function toCSV(contacts) {
   return lines.join('\r\n');
 }
 
+export function toEmailList(contacts) {
+  // Plain text: one email per line. Great for pasting into "BCC" fields,
+  // mail-merge tools, or other scripts.
+  return contacts.map(c => c.email).join('\r\n');
+}
+
+function vcardEsc(s) {
+  return String(s || '').replace(/\\/g, '\\\\').replace(/\n/g, '\\n').replace(/,/g, '\\,').replace(/;/g, '\\;');
+}
+
 export function toVCF(contacts) {
   const out = [];
   for (const c of contacts) {
     out.push('BEGIN:VCARD');
     out.push('VERSION:3.0');
-    out.push(`FN:${c.name || c.email}`);
+    out.push(`FN:${vcardEsc(c.name || c.email)}`);
     if (c.name) {
       const parts = c.name.split(/\s+/);
       const last = parts.length > 1 ? parts.pop() : '';
-      out.push(`N:${last};${parts.join(' ')};;;`);
+      out.push(`N:${vcardEsc(last)};${vcardEsc(parts.join(' '))};;;`);
     }
-    out.push(`EMAIL;TYPE=INTERNET:${c.email}`);
+    out.push(`EMAIL;TYPE=INTERNET;TYPE=PREF:${c.email}`);
+    // Include every alias / secondary address we discovered.
+    for (const alt of (c.aliases || [])) {
+      if (typeof alt === 'string' && alt.includes('@') && alt.toLowerCase() !== c.email.toLowerCase()) {
+        out.push(`EMAIL;TYPE=INTERNET:${alt}`);
+      }
+    }
+    if (c.organization) out.push(`ORG:${vcardEsc(c.organization)}`);
+    if (c.accounts?.length) out.push(`CATEGORIES:${c.accounts.map(vcardEsc).join(',')}`);
+    const noteParts = [];
+    if (c.count) noteParts.push(`Messages: ${c.count}`);
+    if (c.sent) noteParts.push(`Sent: ${c.sent}`);
+    if (c.received) noteParts.push(`Received: ${c.received}`);
+    if (c.mentioned) noteParts.push(`Mentioned: ${c.mentioned}`);
+    if (c.sources?.length) noteParts.push(`Sources: ${c.sources.join(', ')}`);
+    if (noteParts.length) out.push(`NOTE:${vcardEsc(noteParts.join(' | '))}`);
     if (c.lastSeen) out.push(`REV:${c.lastSeen}`);
     out.push('END:VCARD');
   }

@@ -240,6 +240,76 @@ export function upsertContacts(accountId, contacts) {
 export const countContacts = accountId =>
   state.contacts.filter(c => c.account_id === Number(accountId)).length;
 
+/**
+ * Returns every unique email address across every saved account, merged.
+ * Counts are summed; sources/accounts/aliases are unioned; name picks the
+ * longest non-empty one. Used by the "Export everything" feature.
+ */
+export function listAllContactsMerged() {
+  const accountsById = new Map(state.accounts.map(a => [a.id, a.email]));
+  const merged = new Map();
+
+  for (const c of state.contacts) {
+    const key = (c.email || '').toLowerCase();
+    if (!key) continue;
+    const accountEmail = accountsById.get(c.account_id) || '';
+    const m = merged.get(key);
+    if (!m) {
+      merged.set(key, {
+        email: c.email,
+        name: c.name || '',
+        aliases: [...(c.aliases || [])],
+        count: c.count || 0,
+        sent: c.sent || 0,
+        received: c.received || 0,
+        mentioned: c.mentioned || 0,
+        first_seen: c.first_seen || null,
+        last_seen: c.last_seen || null,
+        last_subject: c.last_subject || '',
+        domain: c.domain || '',
+        organization: c.organization || '',
+        sources: [...(c.sources || [])],
+        accounts: accountEmail ? [accountEmail] : []
+      });
+    } else {
+      if (c.name && c.name.length > (m.name || '').length) m.name = c.name;
+      for (const a of (c.aliases || [])) if (!m.aliases.includes(a)) m.aliases.push(a);
+      m.count += c.count || 0;
+      m.sent += c.sent || 0;
+      m.received += c.received || 0;
+      m.mentioned += c.mentioned || 0;
+      if (c.first_seen && (!m.first_seen || c.first_seen < m.first_seen)) m.first_seen = c.first_seen;
+      if (c.last_seen && (!m.last_seen || c.last_seen > m.last_seen)) {
+        m.last_seen = c.last_seen;
+        m.last_subject = c.last_subject || m.last_subject;
+      }
+      if (c.domain) m.domain = c.domain;
+      if (c.organization && !m.organization) m.organization = c.organization;
+      for (const s of (c.sources || [])) if (!m.sources.includes(s)) m.sources.push(s);
+      if (accountEmail && !m.accounts.includes(accountEmail)) m.accounts.push(accountEmail);
+    }
+  }
+
+  return Array.from(merged.values())
+    .sort((a, b) => (b.count + b.mentioned) - (a.count + a.mentioned))
+    .map(c => ({
+      email: c.email,
+      name: c.name,
+      aliases: c.aliases,
+      count: c.count,
+      sent: c.sent,
+      received: c.received,
+      mentioned: c.mentioned,
+      firstSeen: c.first_seen,
+      lastSeen: c.last_seen,
+      lastSubject: c.last_subject,
+      domain: c.domain,
+      organization: c.organization,
+      sources: c.sources,
+      accounts: c.accounts
+    }));
+}
+
 export function clearContacts(accountId) {
   accountId = Number(accountId);
   state.contacts = state.contacts.filter(c => c.account_id !== accountId);

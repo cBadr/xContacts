@@ -4,8 +4,9 @@ import ContactsTable from './components/ContactsTable.jsx';
 import TopBar from './components/TopBar.jsx';
 import AccountsBar from './components/AccountsBar.jsx';
 import BackendStatus from './components/BackendStatus.jsx';
+import ExportMenu from './components/ExportMenu.jsx';
 import {
-  scanStream, exportUrl, accountExportUrl,
+  scanStream,
   listAccounts, getAccount, deleteAccount
 } from './api.js';
 import { useI18n } from './i18n.jsx';
@@ -169,19 +170,11 @@ export default function App() {
               </div>
 
               <div className="toolbar">
-                {activeAccountId ? (
-                  <>
-                    <a className="btn" href={accountExportUrl(activeAccountId, 'csv')} download>{t('exportCsv')}</a>
-                    <a className="btn" href={accountExportUrl(activeAccountId, 'json')} download>{t('exportJson')}</a>
-                    <a className="btn" href={accountExportUrl(activeAccountId, 'vcf')} download>{t('exportVcf')}</a>
-                  </>
-                ) : token && (
-                  <>
-                    <a className="btn" href={exportUrl(token, 'csv')} download>{t('exportCsv')}</a>
-                    <a className="btn" href={exportUrl(token, 'json')} download>{t('exportJson')}</a>
-                    <a className="btn" href={exportUrl(token, 'vcf')} download>{t('exportVcf')}</a>
-                  </>
-                )}
+                <ExportMenu
+                  accountId={activeAccountId}
+                  token={token}
+                  hasMultipleAccounts={accounts.length >= 1}
+                />
               </div>
 
               <ContactsTable contacts={contacts} />

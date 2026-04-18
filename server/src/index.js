@@ -4,13 +4,13 @@ import cors from 'cors';
 import rateLimit from 'express-rate-limit';
 import { z } from 'zod';
 import { IMAP_PRESETS, detectPreset } from './presets.js';
-import { extractContacts, testConnection, toCSV, toVCF } from './extractor.js';
+import { extractContacts, testConnection, toCSV, toVCF, toEmailList } from './extractor.js';
 import { listConfiguredProviders, buildAuthUrl, exchangeCode, refreshAccessToken, getProvider } from './oauth.js';
 import { fetchAddressBook } from './addressbook.js';
 import {
   listAccounts, getAccount, upsertAccount, deleteAccount, touchAccountScan,
   getFolderState, setFolderState, resetFolderState,
-  listContacts, upsertContacts, countContacts, clearContacts,
+  listContacts, listAllContactsMerged, upsertContacts, countContacts, clearContacts,
   createScan, finishScan, listScans
 } from './db.js';
 
@@ -286,6 +286,11 @@ app.get('/api/accounts/:id/export/:format', (req, res) => {
   return sendExport(res, listContacts(id), req.params.format, account.email);
 });
 
+app.get('/api/export-all/:format', (req, res) => {
+  const merged = listAllContactsMerged();
+  return sendExport(res, merged, req.params.format, 'all-accounts');
+});
+
 app.get('/api/export/:token/:format', (req, res) => {
   const { token, format } = req.params;
   const sess = sessions.get(token);
@@ -310,6 +315,11 @@ function sendExport(res, contacts, format, label) {
     res.setHeader('Content-Type', 'text/vcard; charset=utf-8');
     res.setHeader('Content-Disposition', `attachment; filename="${prefix}.vcf"`);
     return res.send(toVCF(contacts));
+  }
+  if (format === 'txt' || format === 'emails') {
+    res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="${prefix}-emails.txt"`);
+    return res.send(toEmailList(contacts));
   }
   res.status(400).json({ error: 'Unknown format' });
 }

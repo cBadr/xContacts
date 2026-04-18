@@ -125,6 +125,10 @@ export function accountExportUrl(accountId, format) {
   return url(`/api/accounts/${accountId}/export/${format}`);
 }
 
+export function exportAllUrl(format) {
+  return url(`/api/export-all/${format}`);
+}
+
 export async function listAccounts() {
   const r = await fetch(url('/api/accounts'));
   return r.ok ? r.json() : [];

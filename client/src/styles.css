@@ -223,10 +223,73 @@ button { font-family: inherit; cursor: pointer; }
   letter-spacing: 1px; color: var(--muted); margin-bottom: 10px;
 }
 .accounts-count {
-  margin-inline-start: auto;
   padding: 2px 8px; border-radius: 999px;
   background: color-mix(in srgb, var(--accent) 15%, transparent);
   color: var(--accent); font-size: 10px;
+}
+.accounts-bar-actions { margin-inline-start: auto; display: flex; gap: 8px; align-items: center; }
+.export-inline { display: inline-flex; align-items: center; gap: 4px; padding: 3px 4px; background: var(--panel-solid); border: 1px solid var(--border); border-radius: 8px; }
+.export-inline-label { font-size: 10px; color: var(--muted); padding: 0 6px; text-transform: uppercase; letter-spacing: 0.5px; font-weight: 700; }
+.export-inline-btn {
+  display: inline-grid; place-items: center;
+  min-width: 38px; height: 22px; padding: 0 8px;
+  font-size: 10.5px; font-weight: 700;
+  color: var(--text-dim); text-decoration: none;
+  border-radius: 5px;
+  transition: all 0.15s var(--ease);
+}
+.export-inline-btn:hover { background: color-mix(in srgb, var(--accent) 15%, transparent); color: var(--accent); }
+
+/* ========== EXPORT MENU (dropdown) ========== */
+.export-menu { position: relative; }
+.export-toggle { display: inline-flex; align-items: center; gap: 6px; }
+.export-dropdown {
+  position: absolute;
+  top: calc(100% + 6px); inset-inline-start: 0;
+  min-width: 240px;
+  background: var(--panel); border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-lg);
+  padding: 6px;
+  z-index: 10;
+  animation: slideUp 0.15s var(--ease);
+}
+.export-scope {
+  display: flex; gap: 4px;
+  padding: 3px; margin-bottom: 4px;
+  background: var(--panel-inner); border-radius: 6px;
+}
+.export-scope-btn {
+  flex: 1; padding: 6px 10px;
+  background: transparent; border: none;
+  color: var(--muted);
+  font-size: 12px; font-weight: 600; border-radius: 5px;
+  transition: all 0.15s var(--ease);
+}
+.export-scope-btn.active { background: var(--panel-solid); color: var(--accent); box-shadow: var(--shadow-sm); }
+.export-item {
+  display: flex; align-items: center; gap: 10px;
+  padding: 8px 10px; border-radius: 6px;
+  color: var(--text); text-decoration: none;
+  font-size: 13px;
+  transition: background 0.12s var(--ease);
+}
+.export-item:hover { background: var(--hover); }
+.export-fmt {
+  display: inline-grid; place-items: center;
+  width: 42px; height: 22px;
+  font-size: 10px; font-weight: 800;
+  letter-spacing: 0.5px;
+  background: color-mix(in srgb, var(--accent) 15%, transparent);
+  color: var(--accent);
+  border-radius: 4px;
+}
+.export-item-label { flex: 1; }
+.export-hint {
+  padding: 8px 10px; margin-top: 4px;
+  font-size: 11px; color: var(--muted);
+  border-top: 1px solid var(--border);
+  line-height: 1.5;
 }
 .accounts-scroll {
   display: flex; gap: 10px; overflow-x: auto; padding-bottom: 4px;

@@ -1,6 +1,7 @@
 import React from 'react';
 import { useI18n } from '../i18n.jsx';
 import { IconUser, IconX } from './icons.jsx';
+import { exportAllUrl } from '../api.js';
 
 function timeAgo(ts, lang) {
   if (!ts) return '—';
@@ -24,6 +25,15 @@ export default function AccountsBar({ accounts, activeId, onSelect, onDelete }) 
         <IconUser size={14} />
         <span>{t('savedAccounts')}</span>
         <span className="accounts-count">{accounts.length}</span>
+        <div className="accounts-bar-actions">
+          <div className="export-inline">
+            <a href={exportAllUrl('csv')} download className="export-inline-btn">CSV</a>
+            <a href={exportAllUrl('json')} download className="export-inline-btn">JSON</a>
+            <a href={exportAllUrl('vcf')} download className="export-inline-btn">VCF</a>
+            <a href={exportAllUrl('txt')} download className="export-inline-btn">TXT</a>
+            <span className="export-inline-label">{t('exportAll')}</span>
+          </div>
+        </div>
       </div>
       <div className="accounts-scroll">
         {accounts.map(a => (
