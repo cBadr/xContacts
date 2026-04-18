@@ -107,26 +107,39 @@ docker run -d --name xcontacts \
 
 Put nginx/Caddy in front for TLS. Point your `VITE_API_URL` at the public URL.
 
-## Alternative 3 — Windows Server
+## Alternative 3 — Windows Server (now dependency-free!)
+
+**Version 1.1 removed the native SQLite dependency** — the server now uses a pure-JS JSON store. No Visual Studio, no Python, no node-gyp. Any LTS Node works (18, 20, 22, 24).
 
 ```powershell
-# Install Node 20 LTS from nodejs.org
-# Install VS Build Tools + Python 3 if better-sqlite3 fails to build.
-
+# 1. Install Node LTS from https://nodejs.org (any recent version)
+# 2. Clone/download the repo:
 git clone https://github.com/YOU/xcontacts.git
 cd xcontacts\server
+
+# 3. One-click install + start:
+run.bat
+
+# OR manually:
 npm install
 copy .env.example .env
 notepad .env
+node src\index.js
+```
 
-# Run as a service with PM2:
+**Run as a Windows service** with PM2:
+
+```powershell
 npm install -g pm2 pm2-windows-startup
 pm2-startup install
+cd xcontacts\server
 pm2 start ecosystem.config.cjs
 pm2 save
 ```
 
-Put IIS/nginx in front for TLS + reverse proxy.
+Logs land in `server/logs/`. Data in `server/data/xcontacts.json` (+ `.bak`).
+
+Put IIS/nginx/Caddy in front for TLS + reverse proxy.
 
 ---
 
@@ -148,10 +161,8 @@ Fixed already:
 - Root `build` script now installs client deps first.
 - The circular `"xcontacts": "file:.."` dependency was removed.
 
-### `better-sqlite3` fails to install
-- Use Node 18/20/22 x64 — prebuilt binaries exist.
-- On Windows: install [Visual Studio Build Tools](https://visualstudio.microsoft.com/downloads/#build-tools-for-visual-studio-2022) with the "Desktop development with C++" workload, plus Python 3.
-- On Alpine/musl: use `node:20-bookworm-slim` (the included Dockerfile does this).
+### Old note: `better-sqlite3` build errors on Windows
+No longer applicable — the server dropped the native SQLite module in v1.1 and uses a pure-JS JSON store. If you upgraded from an older version, just `rm -rf server/node_modules` and `npm install` again. Your existing `data/xcontacts.db` file will be ignored (data is now `data/xcontacts.json`).
 
 ---
 

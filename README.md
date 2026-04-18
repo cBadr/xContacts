@@ -59,6 +59,10 @@ xContacts/
 └── client/   React + Vite UI
 ```
 
+## Storage
+
+Accounts, contacts, scan history and folder UID state are persisted to a JSON file (`server/data/xcontacts.json`) with an atomic-write backup (`.bak`). No database server, no native modules, no Visual Studio — works on any OS with Node 18+.
+
 ## Disclaimer
 
 Use only on mailboxes you own or have explicit permission to access.
