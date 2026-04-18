@@ -6,7 +6,8 @@
   "main": "src/index.js",
   "scripts": {
     "start": "node src/index.js",
-    "dev": "nodemon src/index.js",
+    "dev": "node --watch src/index.js",
+    "dev:nodemon": "nodemon src/index.js",
     "diagnose": "node src/diagnose.js"
   },
   "dependencies": {
@@ -17,7 +18,6 @@
     "express-rate-limit": "^7.4.0",
     "imapflow": "^1.0.160",
     "mailparser": "^3.7.1",
-    "xcontacts": "file:..",
     "zod": "^3.23.8"
   },
   "devDependencies": {

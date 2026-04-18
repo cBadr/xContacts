@@ -1,11 +1,14 @@
+const BASE = (import.meta.env?.VITE_API_URL || '').replace(/\/+$/, '');
+const url = p => `${BASE}${p}`;
+
 export async function getPresets() {
-  const r = await fetch('/api/presets');
+  const r = await fetch(url('/api/presets'));
   if (!r.ok) throw new Error('Failed to load presets');
   return r.json();
 }
 
 export async function detectPreset(email) {
-  const r = await fetch('/api/detect', {
+  const r = await fetch(url('/api/detect'), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ email })
@@ -14,7 +17,7 @@ export async function detectPreset(email) {
 }
 
 export async function getOAuthProviders() {
-  const r = await fetch('/api/oauth/providers');
+  const r = await fetch(url('/api/oauth/providers'));
   if (!r.ok) return [];
   return r.json();
 }
@@ -22,7 +25,7 @@ export async function getOAuthProviders() {
 export function startOAuth(provider) {
   return new Promise(async (resolve, reject) => {
     try {
-      const r = await fetch(`/api/oauth/${provider}/start`);
+      const r = await fetch(url(`/api/oauth/${provider}/start`));
       const data = await r.json();
       if (!r.ok) return reject(new Error(data.error || 'Failed to start OAuth'));
 
@@ -54,18 +57,18 @@ export function startOAuth(provider) {
 }
 
 export async function getOAuthToken(session) {
-  const r = await fetch(`/api/oauth/token/${encodeURIComponent(session)}`, { method: 'POST' });
+  const r = await fetch(url(`/api/oauth/token/${encodeURIComponent(session)}`), { method: 'POST' });
   const data = await r.json();
   if (!r.ok) throw new Error(data.error || 'Failed to get token');
   return data;
 }
 
 export async function revokeOAuth(session) {
-  try { await fetch(`/api/oauth/revoke/${encodeURIComponent(session)}`, { method: 'POST' }); } catch { /* noop */ }
+  try { await fetch(url(`/api/oauth/revoke/${encodeURIComponent(session)}`), { method: 'POST' }); } catch { /* noop */ }
 }
 
 export async function testConnection(config) {
-  const r = await fetch('/api/test', {
+  const r = await fetch(url('/api/test'), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(config)
@@ -77,7 +80,7 @@ export function scanStream(config, handlers) {
   const controller = new AbortController();
   (async () => {
     try {
-      const res = await fetch('/api/scan', {
+      const res = await fetch(url('/api/scan'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(config),
@@ -115,30 +118,30 @@ export function scanStream(config, handlers) {
 }
 
 export function exportUrl(token, format) {
-  return `/api/export/${encodeURIComponent(token)}/${format}`;
+  return url(`/api/export/${encodeURIComponent(token)}/${format}`);
 }
 
 export function accountExportUrl(accountId, format) {
-  return `/api/accounts/${accountId}/export/${format}`;
+  return url(`/api/accounts/${accountId}/export/${format}`);
 }
 
 export async function listAccounts() {
-  const r = await fetch('/api/accounts');
+  const r = await fetch(url('/api/accounts'));
   return r.ok ? r.json() : [];
 }
 
 export async function getAccount(id) {
-  const r = await fetch(`/api/accounts/${id}`);
+  const r = await fetch(url(`/api/accounts/${id}`));
   if (!r.ok) throw new Error('Failed to load account');
   return r.json();
 }
 
 export async function deleteAccount(id) {
-  const r = await fetch(`/api/accounts/${id}`, { method: 'DELETE' });
+  const r = await fetch(url(`/api/accounts/${id}`), { method: 'DELETE' });
   return r.ok;
 }
 
 export async function resetAccount(id) {
-  const r = await fetch(`/api/accounts/${id}/reset`, { method: 'POST' });
+  const r = await fetch(url(`/api/accounts/${id}/reset`), { method: 'POST' });
   return r.ok;
 }
