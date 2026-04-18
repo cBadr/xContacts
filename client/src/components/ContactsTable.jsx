@@ -1,14 +1,5 @@
 import React, { useMemo, useState } from 'react';
-
-const COLS = [
-  { key: 'name', label: 'Name' },
-  { key: 'email', label: 'Email' },
-  { key: 'count', label: 'Total', num: true },
-  { key: 'sent', label: 'Sent', num: true },
-  { key: 'received', label: 'Recv', num: true },
-  { key: 'lastSeen', label: 'Last contact' },
-  { key: 'domain', label: 'Domain' }
-];
+import { useI18n } from '../i18n.jsx';
 
 function fmt(d) {
   if (!d) return '—';
@@ -18,8 +9,19 @@ function fmt(d) {
 }
 
 export default function ContactsTable({ contacts }) {
+  const { t } = useI18n();
   const [q, setQ] = useState('');
   const [sort, setSort] = useState({ key: 'count', dir: 'desc' });
+
+  const cols = [
+    { key: 'name', label: t('colName') },
+    { key: 'email', label: t('colEmail') },
+    { key: 'count', label: t('colTotal'), num: true },
+    { key: 'sent', label: t('colSent'), num: true },
+    { key: 'received', label: t('colReceived'), num: true },
+    { key: 'lastSeen', label: t('colLast') },
+    { key: 'domain', label: t('colDomain') }
+  ];
 
   const rows = useMemo(() => {
     const needle = q.trim().toLowerCase();
@@ -48,18 +50,18 @@ export default function ContactsTable({ contacts }) {
   return (
     <>
       <div className="toolbar">
-        <input type="search" placeholder="Search by name, email, or domain…" value={q} onChange={e => setQ(e.target.value)} />
-        <span className="pill">{rows.length} shown</span>
+        <input type="search" placeholder={t('searchPh')} value={q} onChange={e => setQ(e.target.value)} />
+        <span className="pill">{t('shown', { n: rows.length })}</span>
       </div>
 
       <div className="table-wrap">
         {rows.length === 0 ? (
-          <div className="empty">No contacts match your search.</div>
+          <div className="empty">{t('empty')}</div>
         ) : (
           <table>
             <thead>
               <tr>
-                {COLS.map(c => (
+                {cols.map(c => (
                   <th key={c.key} onClick={() => toggleSort(c.key)} className={c.num ? 'num' : ''}>
                     {c.label}
                     {sort.key === c.key && <span className="arrow">{sort.dir === 'asc' ? '▲' : '▼'}</span>}
@@ -70,7 +72,7 @@ export default function ContactsTable({ contacts }) {
             <tbody>
               {rows.slice(0, 500).map(c => (
                 <tr key={c.email}>
-                  <td>{c.name || <span style={{ color: '#8a93b2' }}>—</span>}</td>
+                  <td>{c.name || <span style={{ color: 'var(--muted)' }}>—</span>}</td>
                   <td>{c.email}</td>
                   <td className="num">{c.count}</td>
                   <td className="num">{c.sent}</td>
@@ -84,7 +86,7 @@ export default function ContactsTable({ contacts }) {
         )}
       </div>
       {rows.length > 500 && (
-        <div className="footer">Showing first 500 of {rows.length}. Export for the full list.</div>
+        <div className="footer">{t('showingFirst', { n: rows.length })}</div>
       )}
     </>
   );

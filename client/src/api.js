@@ -13,6 +13,57 @@ export async function detectPreset(email) {
   return r.json();
 }
 
+export async function getOAuthProviders() {
+  const r = await fetch('/api/oauth/providers');
+  if (!r.ok) return [];
+  return r.json();
+}
+
+export function startOAuth(provider) {
+  return new Promise(async (resolve, reject) => {
+    try {
+      const r = await fetch(`/api/oauth/${provider}/start`);
+      const data = await r.json();
+      if (!r.ok) return reject(new Error(data.error || 'Failed to start OAuth'));
+
+      const w = 500, h = 650;
+      const left = window.screenX + (window.outerWidth - w) / 2;
+      const top = window.screenY + (window.outerHeight - h) / 2;
+      const popup = window.open(data.url, 'xcontacts-oauth', `width=${w},height=${h},left=${left},top=${top}`);
+      if (!popup) return reject(new Error('Popup blocked. Please allow popups for this site.'));
+
+      const onMessage = ev => {
+        const msg = ev.data;
+        if (!msg || typeof msg.type !== 'string' || !msg.type.startsWith('xcontacts-oauth:')) return;
+        window.removeEventListener('message', onMessage);
+        clearInterval(poll);
+        if (msg.type === 'xcontacts-oauth:success') resolve(msg);
+        else reject(new Error(msg.error || 'OAuth failed'));
+      };
+      window.addEventListener('message', onMessage);
+
+      const poll = setInterval(() => {
+        if (popup.closed) {
+          clearInterval(poll);
+          window.removeEventListener('message', onMessage);
+          reject(new Error('Sign-in window was closed before completing'));
+        }
+      }, 500);
+    } catch (e) { reject(e); }
+  });
+}
+
+export async function getOAuthToken(session) {
+  const r = await fetch(`/api/oauth/token/${encodeURIComponent(session)}`, { method: 'POST' });
+  const data = await r.json();
+  if (!r.ok) throw new Error(data.error || 'Failed to get token');
+  return data;
+}
+
+export async function revokeOAuth(session) {
+  try { await fetch(`/api/oauth/revoke/${encodeURIComponent(session)}`, { method: 'POST' }); } catch { /* noop */ }
+}
+
 export async function testConnection(config) {
   const r = await fetch('/api/test', {
     method: 'POST',
@@ -65,4 +116,29 @@ export function scanStream(config, handlers) {
 
 export function exportUrl(token, format) {
   return `/api/export/${encodeURIComponent(token)}/${format}`;
+}
+
+export function accountExportUrl(accountId, format) {
+  return `/api/accounts/${accountId}/export/${format}`;
+}
+
+export async function listAccounts() {
+  const r = await fetch('/api/accounts');
+  return r.ok ? r.json() : [];
+}
+
+export async function getAccount(id) {
+  const r = await fetch(`/api/accounts/${id}`);
+  if (!r.ok) throw new Error('Failed to load account');
+  return r.json();
+}
+
+export async function deleteAccount(id) {
+  const r = await fetch(`/api/accounts/${id}`, { method: 'DELETE' });
+  return r.ok;
+}
+
+export async function resetAccount(id) {
+  const r = await fetch(`/api/accounts/${id}/reset`, { method: 'POST' });
+  return r.ok;
 }

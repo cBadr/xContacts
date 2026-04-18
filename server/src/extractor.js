@@ -190,12 +190,17 @@ export async function extractContacts(config, onEvent) {
     since = null,
     before = null,
     maxPerFolder = 2000,
-    filters = {}
+    filters = {},
+    incremental = null
   } = config;
+
+  const auth = config.accessToken
+    ? { user, accessToken: config.accessToken }
+    : { user, pass, loginMethod: 'LOGIN' };
 
   const client = new ImapFlow({
     host, port, secure,
-    auth: { user, pass, loginMethod: 'LOGIN' },
+    auth,
     logger: {
       debug() {}, info() {}, warn() {},
       error(obj) {
@@ -262,6 +267,21 @@ export async function extractContacts(config, onEvent) {
       }
 
       try {
+        const mailbox = client.mailbox;
+        const uidValidity = Number(mailbox?.uidValidity || 0);
+        let sinceUid = 0;
+        let incValidityOk = true;
+
+        if (incremental) {
+          const prev = incremental.getFolderState(folder.path);
+          if (prev && Number(prev.uid_validity) === uidValidity && prev.last_uid > 0) {
+            sinceUid = prev.last_uid;
+          } else if (prev && Number(prev.uid_validity) !== uidValidity) {
+            onEvent?.({ type: 'status', message: `UIDVALIDITY changed for "${folder.path}" — doing a full re-scan.` });
+            incValidityOk = false;
+          }
+        }
+
         const search = {};
         if (since) search.since = new Date(since);
         if (before) search.before = new Date(before);
@@ -269,7 +289,12 @@ export async function extractContacts(config, onEvent) {
 
         let uids = [];
         try {
-          uids = await client.search(hasCriteria ? search : { all: true }, { uid: true }) || [];
+          if (sinceUid > 0 && incValidityOk) {
+            uids = await client.search({ uid: `${sinceUid + 1}:*` }, { uid: true }) || [];
+            onEvent?.({ type: 'status', message: `Incremental: ${uids.length} new message(s) since UID ${sinceUid}.` });
+          } else {
+            uids = await client.search(hasCriteria ? search : { all: true }, { uid: true }) || [];
+          }
         } catch (err) {
           onEvent?.({ type: 'status', message: `Search failed in "${folder.path}": ${classifyError(err)}` });
           continue;
@@ -282,6 +307,7 @@ export async function extractContacts(config, onEvent) {
 
         const slice = uids.slice(-maxPerFolder);
         const total = slice.length;
+        const maxUid = slice.length ? Math.max(...slice.map(Number)) : sinceUid;
         onEvent?.({ type: 'folder', folder: folder.path, direction: folder.direction, total });
 
         let i = 0;
@@ -310,6 +336,9 @@ export async function extractContacts(config, onEvent) {
           }
         } catch (err) {
           onEvent?.({ type: 'status', message: `Fetch interrupted in "${folder.path}" after ${i} messages: ${classifyError(err)}` });
+        }
+        if (incremental && maxUid > 0 && uidValidity > 0) {
+          try { incremental.setFolderState(folder.path, uidValidity, maxUid); } catch { /* noop */ }
         }
         onEvent?.({ type: 'folder-done', folder: folder.path, processed: i });
       } finally {
@@ -348,9 +377,12 @@ export async function extractContacts(config, onEvent) {
 }
 
 export async function testConnection(config) {
+  const auth = config.accessToken
+    ? { user: config.user, accessToken: config.accessToken }
+    : { user: config.user, pass: config.pass };
   const client = new ImapFlow({
     host: config.host, port: config.port, secure: config.secure,
-    auth: { user: config.user, pass: config.pass },
+    auth,
     logger: false,
     socketTimeout: 30_000,
     greetingTimeout: 15_000,
